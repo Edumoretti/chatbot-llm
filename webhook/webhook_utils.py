@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Any
-from ..orchestrator.orchestrator import DialogOrchestrator
-from ..cart.cart import ShoppingCart
-from ..checkout.checkout_handler import CheckoutHandler
+from src.orchestrator.orchestrator import DialogOrchestrator
+from src.cart.cart import ShoppingCart
+from src.checkout.checkout_handler import CheckoutHandler
 
 class BaseWebhook(ABC):
     def __init__(

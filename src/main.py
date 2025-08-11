@@ -8,7 +8,7 @@ from .cart.cart import ShoppingCart
 from .catalog.catalog_api import CatalogAPI
 from .checkout.checkout_handler import CheckoutHandler
 from .checkout.payment_gateway import PaymentGateway
-from .analytics.analytics import AnalyticsManager
+from .logs.analytics import AnalyticsManager
 
 # Inicialização da aplicação
 app = FastAPI(title="Shopping Bot API")

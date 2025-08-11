@@ -2,16 +2,21 @@ from typing import Dict, Any
 import discord
 from discord.ext import commands
 from .webhook_utils import BaseWebhook, WebhookError
-from ..config import DISCORD_TOKEN
+from src.config import DISCORD_TOKEN
 
-class DiscordWebhook(BaseWebhook, commands.Bot):
-    def __init__(self, *args, **kwargs):
-        BaseWebhook.__init__(self, *args)
-        commands.Bot.__init__(
-            self,
+class DiscordWebhook(commands.Bot):
+    def __init__(self, orchestrator, shopping_cart, catalog_api, **kwargs):
+        intents = discord.Intents.default()
+        intents.message_content = True
+        
+        super().__init__(
             command_prefix='!',
-            intents=discord.Intents.default()
+            intents=intents
         )
+        
+        self.orchestrator = orchestrator
+        self.shopping_cart = shopping_cart
+        self.catalog_api = catalog_api
         
         # Registra comandos
         self.add_commands()
@@ -20,12 +25,99 @@ class DiscordWebhook(BaseWebhook, commands.Bot):
         @self.command(name='produto')
         async def search_product(ctx, *, query: str):
             """Busca produtos no catálogo"""
+            print(f"🔍 Buscando produtos para: {query}")
+            
+            # Busca produtos diretamente no catálogo
+            products = await self.catalog_api.search_products(query)
+            print(f"📦 Encontrados {len(products)} produtos")
+            
+            if not products:
+                await ctx.send(f"❌ Nenhum produto encontrado para '{query}'")
+                return
+            
+            # Mostra até 5 produtos
+            for product in products[:5]:
+                embed = discord.Embed(
+                    title=product.get('titulo', 'Produto'),
+                    description=f"Marca: {product.get('marca', 'N/A')}",
+                    color=discord.Color.blue()
+                )
+                
+                # Preço com símbolo da moeda
+                moeda = product.get('moeda', {})
+                simbolo = moeda.get('simbolo', 'R$')
+                preco = product.get('valor_venda', '0')
+                embed.add_field(name="Preço", value=f"{simbolo} {preco}", inline=True)
+                
+                # Código do produto
+                if product.get('codigo'):
+                    embed.add_field(name="Código", value=product['codigo'], inline=True)
+                
+                # Imagem do produto
+                imagens = product.get('imagens', [])
+                if imagens and len(imagens) > 0:
+                    embed.set_thumbnail(url=imagens[0]['url'])
+                
+                await ctx.send(embed=embed)
+        
+        @self.command(name='marcas')
+        async def list_brands(ctx):
+            """Lista marcas disponíveis"""
+            brands = await self.catalog_api.get_brands()
+            
+            if not brands:
+                await ctx.send("❌ Nenhuma marca encontrada")
+                return
+            
+            # Mostra até 10 marcas
+            brand_list = "\n".join([f"- {brand['nome']}" for brand in brands[:10]])
+            
+            embed = discord.Embed(
+                title="Marcas Disponíveis",
+                description=brand_list,
+                color=discord.Color.green()
+            )
+            
+            if len(brands) > 10:
+                embed.set_footer(text=f"E mais {len(brands) - 10} marcas...")
+            
+            await ctx.send(embed=embed)
+        
+        @self.command(name='categorias')
+        async def list_categories(ctx):
+            """Lista categorias disponíveis"""
+            categories = await self.catalog_api.get_categories()
+            
+            if not categories:
+                await ctx.send("❌ Nenhuma categoria encontrada")
+                return
+            
+            # Mostra até 10 categorias
+            cat_list = "\n".join([f"- {cat['name']}" for cat in categories[:10]])
+            
+            embed = discord.Embed(
+                title="Categorias Disponíveis",
+                description=cat_list,
+                color=discord.Color.purple()
+            )
+            
+            if len(categories) > 10:
+                embed.set_footer(text=f"E mais {len(categories) - 10} categorias...")
+            
+            await ctx.send(embed=embed)
+        
+        @self.command(name='chat')
+        async def chat_with_bot(ctx, *, message: str):
+            """Conversa com o bot usando IA"""
             user_id = str(ctx.author.id)
+            
+            # Usa o orquestrador com roteamento inteligente
             response = await self.orchestrator.process_message(
                 user_id=user_id,
-                message=f"buscar produto {query}",
+                message=message,
                 channel='discord'
             )
+            
             await ctx.send(response)
         
         @self.command(name='carrinho')
